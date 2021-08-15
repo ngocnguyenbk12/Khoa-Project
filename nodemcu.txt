@@ -1,0 +1,45 @@
+
+int rtemp=20;
+int rhum=20;
+
+String humstr="20";
+String tempstr="20";
+String rtempstr="20";
+String rhumstr="20";
+
+String datastr;
+
+DHTesp dht;
+void setup()
+{
+  pinMode(LED_BUILTIN,OUTPUT);
+  digitalWrite(LED_BUILTIN,HIGH);
+  Serial.begin(9600);
+
+}
+
+
+void Timer( float delaytime,  void func()){
+    unsigned long endtime=millis() + delaytime;
+    while(millis() < endtime)
+    {
+      func();
+    }
+}
+void loop()
+{
+  delay(dht.getMinimumSamplingPeriod());
+  int humidity = dht.getHumidity();
+  int temperature = dht.getTemperature();
+  humstr[0]=char( humidity/10+48);
+  humstr[1]=char(humidity%10+48);
+  tempstr[0]=char(temperature/10+48);
+  tempstr[1]=char(temperature%10+48);
+  datastr =humstr;
+  datastr+=tempstr;
+  datastr+=rhumstr;
+  datastr+=rtempstr;
+  Serial1.println(datastr);
+  Serial.println(datastr);
+  Timer(1000,handlfunc);
+}

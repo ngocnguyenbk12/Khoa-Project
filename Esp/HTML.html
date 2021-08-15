@@ -1,0 +1,100 @@
+<!DOCTYPE html> 
+  <html>
+   <head> 
+       <title>HOME PAGE</title> 
+       <style> 
+          body {text-align:center;}
+          h1 {color:#003399;}
+          a {text-decoration: none;color:#FFFFFF;}
+      
+          .bt_1 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#FF0F9F;
+            border-radius:5px;
+          }
+          .bt_2 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#00FE00;
+            border-radius:5px;
+          }
+			
+      .Tag{
+      font-size: 25px;
+      style: color:red;
+      }
+      .Header{
+      font-size: 30px;
+      style: color: black;
+      background-color: pink;
+      }
+       </style>
+       <meta name="viewport" content="width=device-width,user-scalable=0" charset="UTF-8">
+   </head>
+   <body onload="javascript:init()"> 
+   
+    <h1 class = 'Header'> ĐỒ ÁN GIÁM SÁT  </h1> 
+    
+    
+    <div    <p class="Tag" > Thông số  </div>
+	<div 	<p class="Tag" > Nhiệt độ - Độ Ẩm </div>
+  <div  <p  </div>
+  
+    <button class="bt_2"style="color:pink" id = "Nhiệt" >D1 </button>
+	<button class="bt_2"style="color:pink" id = "Độ ẩm" >D2 </button>
+	
+    </div>
+<h2 class = "Tag"> Bật Tắt </h2>  
+
+  <div>
+    <button class="bt_2"style="color:red"onclick="sendData(OFF1)" id = "BUTTON1" > OFF1 </button>
+	<button class="bt_2"style="color:red"onclick="sendData(ON1)" id = "BUTTON2" > ON1 </button>
+	
+<div>
+	<button class="bt_2"style="color:red"onclick="sendData(OFF2)" id = "BUTTON3" > OFF2 </button>
+	<button class="bt_2"style="color:red"onclick="sendData(ON2)" id = "BUTTON4" > ON2 </button>
+<div> 
+	<button class="bt_2"style="color:red"onclick="alertCS()" id = "check" > check </button>
+    </div>
+      
+      <script>
+        function alertCS(){
+            alert("Xác nhận button 1");
+        }
+  </script>
+  
+  <script>
+  function alerthight(){
+      alert(" Server Error");
+      }
+      </script>
+      
+		
+      <script>
+            var Socket;      //Khai báo biến Socket
+            function init(){
+              //Khởi tạo websocket
+              Socket = new WebSocket('ws://' + window.location.hostname + ':81/');
+              //Nhận broadcase từ server
+              Socket.onmessage = function(event){   
+                
+                
+                var JSONobj = JSON.parse(event.data);   //Tách dữ liệu json
+               
+                
+                document.getElementById("Nhiệt").innerHTML = JSONobj.D1;
+				document.getElementById("Độ ẩm").innerHTML = JSONobj.D2;
+				
+               
+              }
+            }
+            //-----------Gửi dữ liệu lên Server-------------------
+            function sendData(data){
+              Socket.send(data);
+            }
+      </script>
+   </body> 
+  </html>

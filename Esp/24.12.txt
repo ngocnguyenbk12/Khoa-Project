@@ -1,0 +1,504 @@
+#include  <Adafruit_ST7735.h>
+#include  <Adafruit_GFX.h>
+#include  <SPI.h>
+#define TFT_CS     15
+#define TFT_RST    2                      
+#define TFT_DC     0
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
+#define TFT_SCLK 14   
+#define TFT_MOSI 13  
+#include "stdio.h"
+
+// Include for DHT11
+#include "DHT.h"
+#define DHTTYPE DHT11 // DHT 11
+const int DHTPin = 4;
+const int Relay1 = 5;
+const int Relay2 = 16;
+const int Alert = 10;
+
+String Rx; 
+String alert;
+int i = 0;
+
+float H0 = 80;
+float H1  = 20;
+float T0 = 33;  
+float T1 = 20;
+float hx;
+float tx;
+float Gas ;
+
+ 
+DHT dht(DHTPin, DHTTYPE);     // Initialize DHT sensor.
+static char celsiusTemp[7];
+static char fahrenheitTemp[7];
+static char humidityTemp[7];
+
+
+
+// Include for Server
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <BlynkSimpleEsp8266.h>
+#include <ESP8266mDNS.h>  //Thư viện mDNS
+#include <WebSocketsServer.h>
+WebSocketsServer webSocket = WebSocketsServer(81);
+ESP8266WebServer webServer(80);
+BlynkTimer timer_update;
+char* ssid = "Nguyen";
+char* pass = "12345678"; 
+
+
+
+const char MainPage[] PROGMEM = R"=====(
+  <!DOCTYPE html> 
+  <html>
+   <head> 
+       <title>HOME PAGE</title> 
+       <style> 
+          body {text-align:center;}
+          h1 {color:#003399;}
+          a {text-decoration: none;color:#FFFFFF;}
+      
+          .bt_1 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#FF0F9F;
+            border-radius:5px;
+          }
+          .bt_2 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#00FF00;
+            border-radius:5px;
+          }
+      .bt_3 {
+            height:50px; 
+            width:500px; 
+            margin:10px 0;
+            background-color:#00FF00;
+            border-radius:5px;
+          }
+      .Tag{
+      font-size: 20px;
+      style: color:red;
+      }
+      .Header{
+      font-size: 30px;
+      style: color: black;
+      background-color: pink;
+      }
+       </style>
+       <meta name="viewport" content="width=device-width,user-scalable=0" charset="UTF-8">
+   </head>
+   <body onload="javascript:init()"> 
+   
+    <h1 class = 'Header'> ĐỒ ÁN GIÁM SÁT  </h1> 
+    
+    
+    <div    <p class="Tag" > Nhiệt Độ Server  </div>
+  <div  <p  </div>
+  
+  <div>
+    <button class="bt_2"style="color:red" id = "Server_T" >T </button>
+    <button class="bt_2"style="color:red" id = "Server_H" >H </button>
+    <button class="bt_2"style="color:red" id = "Server_Gas" >Gas </button>
+    </div>
+  
+
+    <div  <p class="Tag" > Điều Khiển Server </div>
+    <div  <p  </div>
+  
+    <div>
+        <button id = "RL1_BT1" class="bt_1" onclick="alertCS()">RL2_CONFIG</button>
+        <button id = "RL1_BT2" class="bt_1" onclick="sendData('Off1')">RL1_OFF</button>
+    <button id = "RL1_BT3" class="bt_1" onclick="sendData('On1')">RL2_ON</button>
+    </div>
+    <div>
+        <button id = "RL2_BT1" class="bt_1" onclick="alertCS()">RL2_CONFIG</button>
+        <button id = "RL2_BT2" class="bt_1" onclick="sendData('Off2')">RL2_OFF</button>
+    <button id = "RL2_BT2" class="bt_1" onclick="sendData('On2')">RL2_ON</button>
+  </div>
+    
+    
+  <div    <p class="Tag" > Alert Server </div>
+  <div  <p  </div>
+  
+  <div>
+    <button class="bt_2"style="color:red" id = "Server_Alert" > Nop </button>
+    </div>
+      
+      <script>
+        function alertCS(){
+            alert("Xác nhận button 1");
+        }
+  </script>
+  
+  <script>
+  function alerthight(){
+      alert(" Server Error");
+      }
+      </script>
+      
+    
+      <script>
+            var Socket;      //Khai báo biến Socket
+            function init(){
+              //Khởi tạo websocket
+              Socket = new WebSocket('ws://' + window.location.hostname + ':81/');
+              //Nhận broadcase từ server
+              Socket.onmessage = function(event){   
+                
+                
+                var JSONobj = JSON.parse(event.data);   //Tách dữ liệu json
+               
+                document.getElementById("Server_H").innerHTML = JSONobj.D1;
+                document.getElementById("Server_T").innerHTML = JSONobj.D2;
+                document.getElementById("Server_Gas").innerHTML = JSONobj.D3;
+                document.getElementById("Server_Alert").innerHTML = JSONobj.D4;
+               
+              }
+            }
+            //-----------Gửi dữ liệu lên Server-------------------
+            function sendData(data){
+              Socket.send(data);
+            }
+      </script>
+   </body> 
+  </html>
+)=====";
+
+
+
+
+
+
+
+void setup() {
+  
+  //  setup for server
+  
+
+  pinMode(Alert, OUTPUT);
+  pinMode(Relay1,OUTPUT);
+  pinMode(Relay2,OUTPUT);
+  digitalWrite(Alert,LOW);
+  // tft set up
+
+    tft.initR(INITR_BLACKTAB);
+    tft.fillScreen(ST7735_WHITE); //----------------------------------------------cài đặt màu nền
+    printText("T:", ST7735_RED,10,10,2);
+    printText("H:", ST7735_RED,10,30,2);//-46: lùi đầu dòng//-70: khoảng cách trên//-2: cỡ chữ
+    printText("GAS:", ST7735_RED,10,50,2);
+    
+ 
+  //===============Thiết lập kết nối WiFi=================//
+  //WiFi.begin(ssid,pass);
+  Serial.begin(9600);
+  //Serial.print("Connecting");
+//  while(WiFi.status()!=WL_CONNECTED){
+//    delay(500);
+//    Serial.print("...");
+//  }
+//  Serial.println(WiFi.localIP());
+  WiFi.disconnect();
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, pass);
+  //======Khởi tạo mDNS cấp phát Tên miền E-SMART HOME====//
+  if (!MDNS.begin("E-SMARTHOME")) {
+    Serial.println("Error setting up MDNS responder!");
+    while (1) {
+      delay(1000);
+    }
+  }
+  Serial.println("mDNS responder started");
+  MDNS.addService("http","tcp",80);
+  //=================Khởi tạo Web Server=================//   
+ 
+  webServerStart();
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+  timer_update.setInterval(1000L, updateStateD);
+
+
+  //  setup for dht11
+  
+  delay(10);
+  dht.begin();
+
+}
+ 
+void loop() {
+  MDNS.update();  //mDNS
+  webServer.handleClient();
+  webSocket.loop();
+//  timer_update.run();
+ 
+  float hx =  readdht11_readh();
+  float tx =  readdht11_readt();
+  Gas = analogRead(A0);
+  float blank  ;
+
+//printtft(hx);
+//printText("ok", ST7735_RED,50,10,2);
+  String  D1 = convert(hx);
+  String  D2 = convert(tx);
+  String  D3 = convert(Gas);
+  
+  tft.fillScreen(ST7735_WHITE);
+  printText("T:", ST7735_RED,10,10,2);
+  printText("H:", ST7735_BLUE,10,50,2);//-46: lùi đầu dòng//-70: khoảng cách trên//-2: cỡ chữ
+  printText("GAS:", ST7735_GREEN,10,95,2);
+  printtft(tx, 50, 30);
+  printtft(hx, 50, 70);
+  printtft(Gas, 50, 120);
+
+  Comparet(tx);
+  Compareh(hx);
+  String SV;
+  String D4 = alert;
+
+ 
+  
+  String JSONtxt = "{\"D1\":\""+D1+"\",\"D2\":\""+D2+"\",\"D3\":\""+D3+"\",\"D4\":\""+D4+"\" }";
+  webSocket.broadcastTXT(JSONtxt);
+//  String RX = webSocketEvent();
+//  Serial.print("Rx nay :");
+//  Serial.println(Rx);
+  
+  delay(500);
+  
+  
+}
+
+float readdht11_readh(){
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
+  float hic;
+  float hif;
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println("Failed to read from DHT sensor!");
+   
+  }
+  else {
+    /*
+    delay(10);
+    Serial.print("Humidity: ");
+    Serial.print(h);
+    Serial.print(" %\t Temperature: ");
+    Serial.print(t);
+    Serial.print(" *C ");
+//    Serial.print(f);
+//    Serial.print(" *F\t Heat index: ");
+//    Serial.print(hic);
+ //   Serial.print(" *C ");
+//    Serial.println(hif);
+*/
+  }
+  return h;
+}
+float readdht11_readt(){
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float t = dht.readTemperature();
+  // Read temperature as Fahrenheit (isFahrenheit = true)
+  float f = dht.readTemperature(true);
+  float hic;
+  float hif;
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h) || isnan(t) || isnan(f)) {
+    Serial.println("Failed to read from DHT sensor!");
+   
+  }
+  else {
+    delay(20);
+/*    Serial.print("Humidity: ");
+    Serial.print(h);
+    Serial.print(" %\t Temperature: ");
+    Serial.print(t);
+    Serial.print(" *C ");
+    Serial.print(f);
+    Serial.print(" *F\t Heat index: ");
+    Serial.print(hic);
+    Serial.print(" *C ");
+    Serial.println(hif);
+    */
+  }
+  return t;
+}
+
+void Compareh(float h)
+{
+  if( h> H0 && i == 0)
+  {
+    String Content = "Do am cao";
+    digitalWrite(Alert, LOW);
+    alert = Content;
+    i = 1;
+    Sendsms(Content);
+    
+  }
+  else  {
+    if(h <H1 && i == 0){
+        String Content = "Do am thap";
+        digitalWrite(Alert, LOW);
+        alert = Content;
+        i =1;
+        Sendsms(Content);
+    }
+    else{
+          digitalWrite(Alert, HIGH);
+          alert  = "NOP";
+          i = 0;
+    }
+  }
+}
+
+void Comparet(float t)
+{
+  if( t>T0 && i ==  0)
+  {
+      String Content = "Nhiet do cao";
+      digitalWrite(Alert, LOW);
+      alert = Content;
+      i = 1;
+      Sendsms(Content);
+  }
+  else{
+    if( t< T1 && i == 0){
+       String Content = "Nhiet do thap";
+       digitalWrite(Alert, LOW);
+       alert = Content;
+       i =1;
+       Sendsms(Content);
+    }
+    else {
+      digitalWrite(Alert, HIGH);
+      i =0;
+      alert = "NOP";
+      }
+  }
+}
+
+
+
+String convert(float val)
+{
+  int i;
+  char buff[10];
+  char valueString[100] = "";
+  for (i = 0; i < 10; i++) {
+    dtostrf(val, 4, 2, buff);  //4 is mininum width, 6 is precision
+    strcat(valueString, buff);
+    strcat(valueString, ", ");
+  }
+  return buff;
+}
+
+
+void printtft(float h, int cut, int line){
+  int m = (int)h;
+  int chuc = m/10;
+  int dv = m-10*chuc;
+
+  char x[2] ;
+  x[0] = chuc +'0';
+  x[1] = dv +'0';
+  printText(x,ST7735_GREEN,cut,line,2);
+}
+
+void printText(char *text, uint16_t color, int x, int y,int textSize)
+{
+  tft.setCursor(x, y);
+  tft.setTextColor(color);
+  tft.setTextSize(textSize);
+  tft.setTextWrap(true);
+  tft.print(text);
+}
+
+
+//===================Chương trình con====================//
+void webServerStart(){
+  webServer.on("/",mainpage);
+  webServer.begin();
+}
+void mainpage(){
+  String s = FPSTR(MainPage);
+  webServer.send(200,"text/html",s);
+}
+
+// ham xu ly tin hieu doc ve tu webserver //
+void webSocketEvent(uint8_t num, WStype_t type,
+                    uint8_t * payload,
+                    size_t length)
+{
+  String payloadString = (const char *)payload;
+//  Serial.print("payloadString= ");
+//  Serial.println(payloadString);
+  Rx = (const char*)payload;
+
+  if(payloadString == "Off1")
+  {
+    digitalWrite(Relay1, HIGH);
+  }
+  if(payloadString == "On1")
+  {
+    digitalWrite(Relay1, LOW);
+  }
+  if(payloadString == "Off2")
+  {
+    digitalWrite(Relay2, HIGH);
+  }
+  if(payloadString == "On2")
+  {
+    digitalWrite(Relay2, LOW);
+  }
+  if(payloadString == "SMS")
+  { 
+     String Content2 = "SMS";
+    Sendsms(Content2);
+  }
+  if(payloadString == "sendData")
+  {	
+    String  D1 = convert(hx);
+	String  D2 = convert(tx);
+	String  D3 = convert(Gas);
+	String content3 = "{\"Nhietdo\":\""+D1+"\",\"Do am\":\""+D2+"\",\"Gas\":\""+D3+"\"}";
+}
+
+void Sendsms(String Content)
+{ 
+    Serial.print("AT");  //Start Configuring GSM Module
+    delay(1000);         //One second delay
+    Serial.println();
+    Serial.println("AT+CMGF=1");  // Set GSM in text mode
+    delay(1000);                  // One second delay
+    Serial.println();
+    Serial.print("AT+CMGS=");     // Enter the receiver number
+    Serial.print("\"+84399174769\"");
+    Serial.println();
+    delay(1000);
+    Serial.print(Content); // SMS body - Sms Text
+    delay(1000);
+    Serial.println();
+    Serial.write(26);
+}
+
+
+ICACHE_RAM_ATTR void updateStateD(){
+  String d1 = "";
+  String d2 = "";
+  
+  String JSONtxt = "{\"D1\":\""+d1+"\",\"D2\":\""+d2+"\"}";
+//  webSocket.broadcastTXT(JSONtxt);
+//  Serial.println(JSONtxt);
+}

@@ -1,0 +1,257 @@
+
+// Include for Server
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <BlynkSimpleEsp8266.h>
+#include <ESP8266mDNS.h>  //Thư viện mDNS
+#include <WebSocketsServer.h>
+WebSocketsServer webSocket = WebSocketsServer(81);
+ESP8266WebServer webServer(80);
+BlynkTimer timer_update;
+char* ssid = "Nguyen";
+char* pass = "12345678"; 
+
+
+
+const char MainPage[] PROGMEM = R"=====(
+  <!DOCTYPE html> 
+  <html>
+   <head> 
+       <title>HOME PAGE</title> 
+       <style> 
+          body {text-align:center;}
+          h1 {color:#003399;}
+          a {text-decoration: none;color:#FFFFFF;}
+      
+          .bt_1 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#FF0F9F;
+            border-radius:5px;
+          }
+          .bt_2 {
+            height:50px; 
+            width:100px; 
+            margin:10px 0;
+            background-color:#00FF00;
+            border-radius:5px;
+          }
+      .bt_3 {
+            height:50px; 
+            width:500px; 
+            margin:10px 0;
+            background-color:#00FF00;
+            border-radius:5px;
+          }
+      .Tag{
+      font-size: 25px;
+      style: color:red;
+      }
+      .Header{
+      font-size: 30px;
+      style: color: black;
+      background-color: pink;
+      }
+       </style>
+       <meta name="viewport" content="width=device-width,user-scalable=0" charset="UTF-8">
+   </head>
+   <body onload="javascript:init()"> 
+   
+    <h1 class = 'Header'> ĐỒ ÁN GIÁM SÁT  </h1> 
+    
+    
+    <div    <p class="Tag" > Thông số  </div>
+	<div 	<p class="Tag" > Nhiệt độ - Độ Ẩm </div>
+  <div  <p  </div>
+  
+
+    <button class="bt_2"style="color:red" id = "Temp" >D4 </button>
+	 <button class="bt_2"style="color:red" id = "Hum" >D4 </button>
+	 
+    </div>
+    <div  <p  </div>
+  
+
+    <button class="bt_2"style="color:red" id = "Temp_A" >Temp_Alert </button>
+	<button class="bt_2"style="color:red" id = "Hum_A" >Hum_Alert </button>
+	
+
+	 
+    </div>
+
+   
+  <div>
+    <button class="bt_2"style="color:red"onclick="alertCS()" id = "GETTH" > GETTH </button>
+    </div>
+      
+      <script>
+        function alertCS(){
+            alert("Xác nhận button 1");
+        }
+  </script>
+  
+  <script>
+  function alerthight(){
+      alert(" Server Error");
+      }
+      </script>
+      
+    
+      <script>
+            var Socket;      //Khai báo biến Socket
+            function init(){
+              //Khởi tạo websocket
+              Socket = new WebSocket('ws://' + window.location.hostname + ':81/');
+              //Nhận broadcase từ server
+              Socket.onmessage = function(event){   
+                
+                
+                var JSONobj = JSON.parse(event.data);   //Tách dữ liệu json
+               
+                
+                document.getElementById("Server_Alert").innerHTML = JSONobj.Temp;
+				document.getElementById("Server_Alert").innerHTML = JSONobj.Hum;
+				document.getElementById("Server_Alert").innerHTML = JSONobj.Temp_A;
+				document.getElementById("Server_Alert").innerHTML = JSONobj.Hum_A;
+               
+              }
+            }
+            //-----------Gửi dữ liệu lên Server-------------------
+            function sendData(data){
+              Socket.send(data);
+            }
+      </script>
+   </body> 
+  </html>
+)=====";
+
+
+
+
+
+
+
+void setup() {
+  
+  
+  //===============Thiết lập kết nối WiFi=================//
+  //WiFi.begin(ssid,pass);
+  Serial.begin(9600);
+  //Serial.print("Connecting");
+//  while(WiFi.status()!=WL_CONNECTED){
+//    delay(500);
+//    Serial.print("...");
+//  }
+//  Serial.println(WiFi.localIP());
+  WiFi.disconnect();
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, pass);
+  //======Khởi tạo mDNS cấp phát Tên miền E-SMART HOME====//
+  if (!MDNS.begin("E-SMARTHOME")) {
+    Serial.println("Error setting up MDNS responder!");
+    while (1) {
+      delay(1000);
+    }
+  }
+  Serial.println("mDNS responder started");
+  MDNS.addService("http","tcp",80);
+  //=================Khởi tạo Web Server=================//   
+ 
+  webServerStart();
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+  timer_update.setInterval(1000L, updateStateD);
+
+
+}
+ 
+void loop() {
+  MDNS.update();  //mDNS
+  webServer.handleClient();
+  webSocket.loop();
+//  timer_update.run();
+ 
+  
+  String  D1 = "20"
+  String  D2 =  "20"
+  String  D3 =  "20"
+
+  D4 = alert;
+
+ 
+  
+  String JSONtxt = "{\"D1\":\""+D1+"\",\"D2\":\""+D2+"\",\"D3\":\""+D3+"\",\"D4\":\""+D4+"\" }";
+  webSocket.broadcastTXT(JSONtxt);
+//  String RX = webSocketEvent();
+//  Serial.print("Rx nay :");
+//  Serial.println(Rx);
+  
+  delay(500);
+  
+  
+}
+
+
+
+//===================Chương trình con====================//
+void webServerStart(){
+  webServer.on("/",mainpage);
+  webServer.begin();
+}
+void mainpage(){
+  String s = FPSTR(MainPage);
+  webServer.send(200,"text/html",s);
+}
+
+// ham xu ly tin hieu doc ve tu webserver //
+void webSocketEvent(uint8_t num, WStype_t type,
+                    uint8_t * payload,
+                    size_t length)
+{
+  String payloadString = (const char *)payload;
+//  Serial.print("payloadString= ");
+//  Serial.println(payloadString);
+  Rx = (const char*)payload;
+
+  if(payloadString == "Off1")
+  {
+    digitalWrite(Relay1, HIGH);
+  }
+  if(payloadString == "On1")
+  {
+    digitalWrite(Relay1, LOW);
+  }
+  if(payloadString == "Off2")
+  {
+    digitalWrite(Relay2, HIGH);
+  }
+  if(payloadString == "On2")
+  {
+    digitalWrite(Relay2, LOW);
+  }
+  if(payloadString == "SMS")
+  { 
+     String Content2 = "SMS";
+    Sendsms(Content2);
+  }
+  if(payloadString == "SendData")
+  {  
+  String  D1 = convert(Hx);
+  String  D2 = convert(Tx);
+  String  D3 = convert(Gas);
+  String content3 = "{\"Nhietdo\":\""+D1+"\",\"Do am\":\""+D2+"\",\"Gas\":\""+D3+"\"}";
+  Sendsms(content3);
+  }
+  
+}
+
+
+ICACHE_RAM_ATTR void updateStateD(){
+  String d1 = "";
+  String d2 = "";
+  
+  String JSONtxt = "{\"D1\":\""+d1+"\",\"D2\":\""+d2+"\"}";
+//  webSocket.broadcastTXT(JSONtxt);
+//  Serial.println(JSONtxt);
+}
